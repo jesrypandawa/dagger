@@ -15,6 +15,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: |
+            ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
           restore-keys: |
@@ -23,3 +24,7 @@ jobs:
         run: chmod +x gradlew
       - name: Building dagger core. All dependent sub project would be built as part of this
         run: ./gradlew build
+      - name: Cleanup Gradle cache
+        run : |
+          rm -f ~/gradle/caches/modules-2/modules-2.lock
+          rm -f ~/gradle/caches/modules-2/gc.properties
