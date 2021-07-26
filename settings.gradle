@@ -4,10 +4,3 @@ include 'dagger-core'
 include 'dagger-common'
 include 'dagger-functions'
 include 'dagger-tests'
-
-buildCache {
-    local(DirectoryBuildCache) {
-        directory = new File(rootDir, 'gradle/caches') // custom project's directory
-        removeUnusedEntriesAfterDays = 30
-    }
-}
