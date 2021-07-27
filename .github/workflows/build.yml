@@ -15,8 +15,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            $GRADLE_USER_HOME/caches
+            $GRADLE_USER_HOME/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
