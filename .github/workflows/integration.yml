@@ -47,8 +47,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-cache-v1-${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-test--${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-cache-v1-
+            ${{ runner.os }}-gradle-test--
       - name: Run test
         run: POSTGRES_HOST=postgres ES_HOST=localhost ./gradlew integrationTest
