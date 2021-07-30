@@ -11,6 +11,15 @@ jobs:
       - uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - name: Cache Gradle packages
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-test2-${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-test2-
       - name: Publish dependencies package of core
         run: ./gradlew :dagger-core:dependenciesPublish
         env:

@@ -17,8 +17,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-test--${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-test2-${{ hashFiles('**/*.gradle*', '**.gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-test--
+            ${{ runner.os }}-gradle-test2-
       - name: Building dagger core. All dependent sub project would be built as part of this
         run: ./gradlew build
