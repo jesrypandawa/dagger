@@ -35,6 +35,7 @@ public class LogSink extends RichSinkFunction<Row> {
                 map.put(columnNames[i], field.toString());
             }
         }
+
         LOGGER.info(map.toString());
     }
 }
