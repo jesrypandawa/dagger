@@ -299,6 +299,7 @@ public class GrpcExternalPostProcessorIntegrationTest {
         assertTrue(CollectSink.OUTPUT_VALUES.get(0).getField(1) instanceof Timestamp);
         assertEquals("Grpc Response Success", CollectSink.OUTPUT_VALUES.get(0).getField(0));
         assertEquals("dummy-customer-id", CollectSink.OUTPUT_VALUES.get(0).getField(2));
+
         assertEquals("", CollectSink.OUTPUT_VALUES.get(0).getField(3));
     }
 
