@@ -1,28 +1,28 @@
 package io.odpf.dagger.core.processors.external.es;
 
-import io.odpf.dagger.consumer.TestBookingLogMessage;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.async.ResultFuture;
 import org.apache.flink.types.Row;
 
+import io.odpf.stencil.client.StencilClient;
 import io.odpf.dagger.common.core.StencilClientOrchestrator;
 import io.odpf.dagger.common.exceptions.DescriptorNotFoundException;
-import io.odpf.dagger.core.exception.InvalidConfigurationException;
 import io.odpf.dagger.common.metrics.managers.MeterStatsManager;
+import io.odpf.dagger.consumer.TestBookingLogMessage;
+import io.odpf.dagger.core.exception.InvalidConfigurationException;
 import io.odpf.dagger.core.metrics.aspects.ExternalSourceAspects;
 import io.odpf.dagger.core.metrics.reporters.ErrorReporter;
 import io.odpf.dagger.core.metrics.telemetry.TelemetrySubscriber;
 import io.odpf.dagger.core.processors.ColumnNameManager;
-import io.odpf.dagger.core.processors.external.ExternalMetricConfig;
-import io.odpf.dagger.core.processors.external.SchemaConfig;
 import io.odpf.dagger.core.processors.common.OutputMapping;
-import com.gojek.de.stencil.client.StencilClient;
+import io.odpf.dagger.core.processors.external.ExternalMetricConfig;
+import io.odpf.dagger.core.processors.common.SchemaConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -36,13 +36,14 @@ import static io.odpf.dagger.core.metrics.aspects.ExternalSourceAspects.INVALID_
 import static io.odpf.dagger.core.metrics.aspects.ExternalSourceAspects.TIMEOUTS;
 import static io.odpf.dagger.core.metrics.aspects.ExternalSourceAspects.TOTAL_EXTERNAL_CALLS;
 import static io.odpf.dagger.core.utils.Constants.ES_TYPE;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 @RunWith(MockitoJUnitRunner.Silent.class)
 public class EsAsyncConnectorTest {
-
+    @Mock
     private ResultFuture<Row> resultFuture;
 
     @Mock
@@ -58,19 +59,23 @@ public class EsAsyncConnectorTest {
     @Mock
     private SchemaConfig schemaConfig;
 
+    @Mock
     private RestClient esClient;
-    private EsSourceConfig esSourceConfig;
+
+    private EsSourceConfig validEsSourceConfig;
     private HashMap<String, OutputMapping> outputMapping;
     private Row inputData;
     private Row streamRow;
+
+    @Mock
     private StencilClient stencilClient;
+
     private ExternalMetricConfig externalMetricConfig;
     private String[] inputProtoClasses;
 
     @Before
     public void setUp() {
         initMocks(this);
-        when(configuration.getString("FLINK_JOB_ID", "SQL Flink Job")).thenReturn("test-job");
         streamRow = new Row(2);
         inputData = new Row(6);
         Row outputData = new Row(3);
@@ -79,11 +84,7 @@ public class EsAsyncConnectorTest {
         outputMapping = new HashMap<>();
         outputMapping.put("customer_profile", new OutputMapping("$.customer"));
         outputMapping.put("driver_profile", new OutputMapping("$.driver"));
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", "/drivers/driver/%s",
-                "driver_id", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
-        esClient = mock(RestClient.class);
-        resultFuture = mock(ResultFuture.class);
+        validEsSourceConfig = getValidEsSourceConfigBuilder().createEsSourceConfig();
         String[] inputColumnNames = new String[]{"order_id", "event_timestamp", "driver_id", "customer_id", "status", "service_area_id"};
         boolean telemetryEnabled = true;
         long shutDownPeriod = 0L;
@@ -94,14 +95,15 @@ public class EsAsyncConnectorTest {
         when(schemaConfig.getColumnNameManager()).thenReturn(new ColumnNameManager(inputColumnNames, new ArrayList<>()));
         when(schemaConfig.getStencilClientOrchestrator()).thenReturn(stencilClientOrchestrator);
         when(schemaConfig.getOutputProtoClassName()).thenReturn("AnotherTestMessage");
-        stencilClient = mock(StencilClient.class);
     }
+
 
     @Test
     public void shouldNotEnrichOutputWhenEndpointVariableIsEmptyAndRequiredInPattern() throws Exception {
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", "/drivers/driver/%s",
-                "", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointVariables("")
+                .setEndpointPattern("/drivers/driver/%s")
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
 
         esAsyncConnector.open(configuration);
@@ -115,22 +117,24 @@ public class EsAsyncConnectorTest {
     @Test
     public void shouldEnrichOutputWhenEndpointVariableIsEmptyAndNotRequiredInPattern() throws Exception {
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", "/drivers/",
-                "", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointVariables("")
+                .setEndpointPattern("/drivers/")
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
 
         esAsyncConnector.open(configuration);
         esAsyncConnector.asyncInvoke(streamRow, resultFuture);
 
-        verify(esClient, times(1)).performRequestAsync(any(Request.class), any(EsResponseHandler.class));
+        Request expectedRequest = new Request("GET", "/drivers/");
+        verify(esClient, times(1)).performRequestAsync(eq(expectedRequest), any(EsResponseHandler.class));
         verify(resultFuture, times(0)).completeExceptionally(any(InvalidConfigurationException.class));
         verify(meterStatsManager, times(0)).markEvent(INVALID_CONFIGURATION);
     }
 
     @Test
     public void shouldRegisterMetricGroup() throws Exception {
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
 
         esAsyncConnector.open(configuration);
         verify(meterStatsManager, times(1)).register("source_metricId", "ES.metricId_01", ExternalSourceAspects.values());
@@ -140,7 +144,7 @@ public class EsAsyncConnectorTest {
     public void shouldFetchDescriptorInInvoke() throws Exception {
         inputData.setField(2, "11223344545");
 
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
 
@@ -155,17 +159,12 @@ public class EsAsyncConnectorTest {
         inputData.setField(2, "11223344545");
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
 
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         when(stencilClient.get("TestMessage")).thenReturn(null);
 
         esAsyncConnector.open(configuration);
-        try {
-            esAsyncConnector.asyncInvoke(streamRow, resultFuture);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        esAsyncConnector.asyncInvoke(streamRow, resultFuture);
         verify(errorReporter, times(1)).reportFatalException(any(DescriptorNotFoundException.class));
         verify(resultFuture, times(1)).completeExceptionally(any(DescriptorNotFoundException.class));
     }
@@ -175,18 +174,25 @@ public class EsAsyncConnectorTest {
     public void shouldNotEnrichOutputWhenEndpointVariableIsInvalid() throws Exception {
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", "/drivers/driver/%s",
-                "invalid_variable", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointVariables("invalid_variable")
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
 
         esAsyncConnector.open(configuration);
         esAsyncConnector.asyncInvoke(streamRow, resultFuture);
 
-        verify(resultFuture, times(1)).completeExceptionally(any(InvalidConfigurationException.class));
+        ArgumentCaptor<InvalidConfigurationException> invalidConfigurationExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        ArgumentCaptor<InvalidConfigurationException> reportExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        String expectedExceptionMessage = "Column 'invalid_variable' not found as configured in the 'ENDPOINT_VARIABLE' variable";
+
+        verify(resultFuture, times(1)).completeExceptionally(invalidConfigurationExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, invalidConfigurationExceptionCaptor.getValue().getMessage());
         verify(meterStatsManager, times(1)).markEvent(ExternalSourceAspects.INVALID_CONFIGURATION);
-        verify(errorReporter, times(1)).reportFatalException(any(InvalidConfigurationException.class));
+        verify(errorReporter, times(1)).reportFatalException(reportExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, reportExceptionCaptor.getValue().getMessage());
         verify(esClient, never()).performRequestAsync(any(Request.class), any(EsResponseHandler.class));
+
     }
 
     @Test
@@ -194,18 +200,25 @@ public class EsAsyncConnectorTest {
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         inputData.setField(2, "11223344545");
-        String invalidEndpointPattern = "/drivers/driver/%";
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", invalidEndpointPattern,
-                "driver_id", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
-
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointPattern("/drivers/driver/%")
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         esAsyncConnector.open(configuration);
         esAsyncConnector.asyncInvoke(streamRow, resultFuture);
 
-        verify(resultFuture, times(1)).completeExceptionally(any(InvalidConfigurationException.class));
+        ArgumentCaptor<InvalidConfigurationException> invalidConfigurationExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        ArgumentCaptor<InvalidConfigurationException> reportExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        String expectedExceptionMessage = "pattern config '/drivers/driver/%' is invalid";
+
+        verify(resultFuture, times(1)).completeExceptionally(invalidConfigurationExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, invalidConfigurationExceptionCaptor.getValue().getMessage());
+
         verify(meterStatsManager, times(1)).markEvent(INVALID_CONFIGURATION);
-        verify(errorReporter, times(1)).reportFatalException(any(InvalidConfigurationException.class));
+
+        verify(errorReporter, times(1)).reportFatalException(reportExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, reportExceptionCaptor.getValue().getMessage());
+
         verify(esClient, never()).performRequestAsync(any(Request.class), any(EsResponseHandler.class));
     }
 
@@ -214,18 +227,26 @@ public class EsAsyncConnectorTest {
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         inputData.setField(2, "11223344545");
-        String invalidEndpointPattern = "/drivers/driver/%d";
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "test_user", "mysecretpassword", invalidEndpointPattern,
-                "driver_id", "TestMessage", "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
+
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointPattern("/drivers/driver/%d")
+                .createEsSourceConfig();
 
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         esAsyncConnector.open(configuration);
         esAsyncConnector.asyncInvoke(streamRow, resultFuture);
 
-        verify(resultFuture, times(1)).completeExceptionally(any(InvalidConfigurationException.class));
+        ArgumentCaptor<InvalidConfigurationException> invalidConfigurationExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        ArgumentCaptor<InvalidConfigurationException> reportExceptionCaptor = ArgumentCaptor.forClass(InvalidConfigurationException.class);
+        String expectedExceptionMessage = "pattern config '/drivers/driver/%d' is incompatible with the variable config 'driver_id'";
+
+        verify(resultFuture, times(1)).completeExceptionally(invalidConfigurationExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, invalidConfigurationExceptionCaptor.getValue().getMessage());
+
         verify(meterStatsManager, times(1)).markEvent(INVALID_CONFIGURATION);
-        verify(errorReporter, times(1)).reportFatalException(any(InvalidConfigurationException.class));
+        verify(errorReporter, times(1)).reportFatalException(reportExceptionCaptor.capture());
+        assertEquals(expectedExceptionMessage, reportExceptionCaptor.getValue().getMessage());
+
         verify(esClient, never()).performRequestAsync(any(Request.class), any(EsResponseHandler.class));
     }
 
@@ -235,6 +256,9 @@ public class EsAsyncConnectorTest {
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         inputData.setField(2, "11223344545");
 
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setEndpointPattern("/drivers/driver/%s")
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
 
@@ -251,12 +275,11 @@ public class EsAsyncConnectorTest {
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         inputData.setField(2, "11223344545");
-        esSourceConfig = new EsSourceConfig("localhost", "9200", null, null,
-                "/drivers/driver/%s", "driver_id", null, "30",
-                "5000", "5000", "5000", "5000", false,
-                outputMapping, "metricId_01", false);
         inputData.setField(2, "11223344545");
-
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setPassword(null)
+                .setUser(null)
+                .createEsSourceConfig();
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
 
@@ -273,7 +296,7 @@ public class EsAsyncConnectorTest {
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
         esClient = null;
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         esAsyncConnector.open(configuration);
         esAsyncConnector.timeout(streamRow, resultFuture);
 
@@ -291,15 +314,14 @@ public class EsAsyncConnectorTest {
         HashMap<String, List<String>> metrics = new HashMap<>();
         metrics.put("post_processor_type", postProcessorType);
 
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         esAsyncConnector.preProcessBeforeNotifyingSubscriber();
-
-        Assert.assertEquals(metrics, esAsyncConnector.getTelemetry());
+        assertEquals(metrics, esAsyncConnector.getTelemetry());
     }
 
     @Test
     public void shouldNotifySubscribers() {
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         esAsyncConnector.notifySubscriber(telemetrySubscriber);
 
         verify(telemetrySubscriber, times(1)).updated(esAsyncConnector);
@@ -307,22 +329,17 @@ public class EsAsyncConnectorTest {
 
     @Test
     public void shouldGetDescriptorFromOutputProtoIfTypeNotGiven() throws Exception {
-        esSourceConfig = new EsSourceConfig("localhost", "9200", "", "", "/drivers/driver/%s",
-                "driver_id", null, "30",
-                "5000", "5000", "5000", "5000", false, outputMapping, "metricId_01", false);
         inputData.setField(2, "11223344545");
+        EsSourceConfig esSourceConfig = getValidEsSourceConfigBuilder()
+                .setType(null)
+                .createEsSourceConfig();
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
 
         EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
 
         esAsyncConnector.open(configuration);
-        try {
-            esAsyncConnector.asyncInvoke(streamRow, resultFuture);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        esAsyncConnector.asyncInvoke(streamRow, resultFuture);
         verify(stencilClient, times(1)).get("AnotherTestMessage");
     }
 
@@ -331,15 +348,32 @@ public class EsAsyncConnectorTest {
         inputData.setField(2, "11223344545");
         when(stencilClient.get(inputProtoClasses[0])).thenReturn(TestBookingLogMessage.getDescriptor());
 
-        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(esSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
+        EsAsyncConnector esAsyncConnector = new EsAsyncConnector(validEsSourceConfig, externalMetricConfig, schemaConfig, esClient, errorReporter, meterStatsManager);
         when(stencilClientOrchestrator.getStencilClient()).thenReturn(stencilClient);
 
         esAsyncConnector.open(configuration);
-        try {
-            esAsyncConnector.asyncInvoke(streamRow, resultFuture);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        esAsyncConnector.asyncInvoke(streamRow, resultFuture);
         verify(stencilClient, times(1)).get("TestMessage");
     }
+
+    private EsSourceConfigBuilder getValidEsSourceConfigBuilder() {
+        return new EsSourceConfigBuilder()
+                .setHost("localhost")
+                .setPort("9200")
+                .setUser("test_user")
+                .setPassword("mysecretpassword")
+                .setEndpointPattern("/drivers/driver/%s")
+                .setEndpointVariables("driver_id")
+                .setType("TestMessage")
+                .setCapacity("30")
+                .setConnectTimeout("5000")
+                .setRetryTimeout("5000")
+                .setSocketTimeout("5000")
+                .setStreamTimeout("5000")
+                .setFailOnErrors(false)
+                .setOutputMapping(outputMapping)
+                .setMetricId("metricId_01")
+                .setRetainResponseType(false);
+    }
+
 }

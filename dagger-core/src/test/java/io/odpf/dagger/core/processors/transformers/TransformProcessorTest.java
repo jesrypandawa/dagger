@@ -1,19 +1,17 @@
 package io.odpf.dagger.core.processors.transformers;
 
-import io.odpf.dagger.common.core.Transformer;
-import io.odpf.dagger.common.core.StreamInfo;
-import io.odpf.dagger.core.metrics.telemetry.TelemetryTypes;
-import io.odpf.dagger.core.processors.telemetry.processor.MetricsTelemetryExporter;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.types.Row;
-import org.junit.Assert;
+
+import io.odpf.dagger.common.configuration.Configuration;
+import io.odpf.dagger.common.core.StreamInfo;
+import io.odpf.dagger.common.core.Transformer;
+import io.odpf.dagger.core.metrics.telemetry.TelemetryTypes;
+import io.odpf.dagger.core.processors.telemetry.processor.MetricsTelemetryExporter;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
@@ -21,13 +19,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.mockito.Mockito.*;
+import static io.odpf.dagger.core.metrics.telemetry.TelemetryTypes.PRE_PROCESSOR_TYPE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 public class TransformProcessorTest {
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     @Mock
     private List<TransformConfig> transfromConfigs;
@@ -59,30 +61,28 @@ public class TransformProcessorTest {
     public void shouldThrowExceptionInCaseOfWrongClassName() {
         when(streamInfo.getDataStream()).thenReturn(dataStream);
         when(streamInfo.getColumnNames()).thenReturn(null);
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("wrongClassName");
         HashMap<String, Object> transformationArguments = new HashMap<>();
         transformationArguments.put("keyField", "keystore");
         transfromConfigs = new ArrayList<>();
         transfromConfigs.add(new TransformConfig("wrongClassName", transformationArguments));
 
         TransformProcessor transformProcessor = new TransformProcessor(transfromConfigs, configuration);
-        transformProcessor.process(streamInfo);
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> transformProcessor.process(streamInfo));
+        assertEquals("wrongClassName", exception.getMessage());
     }
 
     @Test
     public void shouldThrowExceptionInCaseOfWrongConstructorTypeSupported() {
         when(streamInfo.getDataStream()).thenReturn(dataStream);
         when(streamInfo.getColumnNames()).thenReturn(null);
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectMessage("TransformProcessor.<init>(java.util.Map, [Ljava.lang.String;, org.apache.flink.configuration.Configuration)");
         HashMap<String, Object> transformationArguments = new HashMap<>();
         transformationArguments.put("keyField", "keystore");
         transfromConfigs = new ArrayList<>();
         transfromConfigs.add(new TransformConfig("io.odpf.dagger.core.processors.transformers.TransformProcessor", transformationArguments));
 
         TransformProcessor transformProcessor = new TransformProcessor(transfromConfigs, configuration);
-        transformProcessor.process(streamInfo);
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> transformProcessor.process(streamInfo));
+        assertEquals("io.odpf.dagger.core.processors.transformers.TransformProcessor.<init>(java.util.Map, [Ljava.lang.String;, io.odpf.dagger.common.configuration.Configuration)", exception.getMessage());
     }
 
     @Test
@@ -117,7 +117,7 @@ public class TransformProcessorTest {
         TransformProcessorMock transformProcessorMock = new TransformProcessorMock(transformer, transfromConfigs);
         transformProcessorMock.preProcessBeforeNotifyingSubscriber();
 
-        Assert.assertEquals(metrics, transformProcessorMock.getTelemetry());
+        assertEquals(metrics, transformProcessorMock.getTelemetry());
     }
 
     @Test
@@ -134,10 +134,10 @@ public class TransformProcessorTest {
         transfromConfigs = new ArrayList<>();
         transfromConfigs.add(new TransformConfig("MapClass", transformationArguments));
 
-        TransformProcessorMock transformProcessorMock = new TransformProcessorMock("test_table", TelemetryTypes.PRE_PROCESSOR_TYPE, transformer, transfromConfigs);
+        TransformProcessorMock transformProcessorMock = new TransformProcessorMock("test_table", PRE_PROCESSOR_TYPE, transformer, transfromConfigs);
         transformProcessorMock.preProcessBeforeNotifyingSubscriber();
 
-        Assert.assertEquals(metrics, transformProcessorMock.getTelemetry());
+        assertEquals(metrics, transformProcessorMock.getTelemetry());
     }
 
     @Test
@@ -171,7 +171,6 @@ public class TransformProcessorTest {
 
         TransformProcessor transformProcessor = new TransformProcessor(transfromConfigs, configuration);
         transformProcessor.process(streamInfo);
-
         verify(mappedDataStream, times(1)).map(any());
     }
 
@@ -203,13 +202,13 @@ public class TransformProcessorTest {
         TransformConfig config = new TransformConfig("io.odpf.TestProcessor", new HashMap<String, Object>() {{
             put("test-key", "test-value");
         }});
-        TransformProcessor processor = new TransformProcessor("test_table", TelemetryTypes.PRE_PROCESSOR_TYPE, Collections.singletonList(config), configuration);
-        Assert.assertEquals("test_table", processor.tableName);
-        Assert.assertEquals(TelemetryTypes.PRE_PROCESSOR_TYPE, processor.type);
-        Assert.assertEquals(1, processor.transformConfigs.size());
-        Assert.assertEquals("io.odpf.TestProcessor", processor.transformConfigs.get(0).getTransformationClass());
-        Assert.assertEquals("test_table", processor.transformConfigs.get(0).getTransformationArguments().get("table_name"));
-        Assert.assertEquals("test-value", processor.transformConfigs.get(0).getTransformationArguments().get("test-key"));
+        TransformProcessor processor = new TransformProcessor("test_table", PRE_PROCESSOR_TYPE, Collections.singletonList(config), configuration);
+        assertEquals("test_table", processor.tableName);
+        assertEquals(PRE_PROCESSOR_TYPE, processor.type);
+        assertEquals(1, processor.transformConfigs.size());
+        assertEquals("io.odpf.TestProcessor", processor.transformConfigs.get(0).getTransformationClass());
+        assertEquals("test_table", processor.transformConfigs.get(0).getTransformationArguments().get("table_name"));
+        assertEquals("test-value", processor.transformConfigs.get(0).getTransformationArguments().get("test-key"));
     }
 
     static class TransformerMock implements Transformer {

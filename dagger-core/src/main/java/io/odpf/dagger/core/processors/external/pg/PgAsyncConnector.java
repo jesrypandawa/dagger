@@ -6,10 +6,11 @@ import io.odpf.dagger.core.metrics.reporters.ErrorReporter;
 import io.odpf.dagger.core.processors.common.PostResponseTelemetry;
 import io.odpf.dagger.core.processors.common.RowManager;
 import io.odpf.dagger.core.processors.external.ExternalMetricConfig;
-import io.odpf.dagger.core.processors.external.SchemaConfig;
+import io.odpf.dagger.core.processors.common.SchemaConfig;
 import io.odpf.dagger.core.processors.external.AsyncConnector;
 import io.odpf.dagger.core.metrics.aspects.ExternalSourceAspects;
 import io.odpf.dagger.core.utils.Constants;
+import io.odpf.dagger.core.utils.Constants.ExternalPostProcessorVariableType;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.pgclient.PgConnectOptions;
@@ -89,8 +90,8 @@ public class PgAsyncConnector extends AsyncConnector {
         RowManager rowManager = new RowManager(input);
 
         Object[] queryVariablesValues = getEndpointHandler()
-                .getEndpointOrQueryVariablesValues(rowManager, resultFuture);
-        if (getEndpointHandler().isQueryInvalid(resultFuture, rowManager, queryVariablesValues)) {
+                .getVariablesValue(rowManager, ExternalPostProcessorVariableType.QUERY_VARIABLES, pgSourceConfig.getVariables(), resultFuture);
+        if (getEndpointHandler().isQueryInvalid(resultFuture, rowManager, pgSourceConfig.getVariables(), queryVariablesValues)) {
             return;
         }
 

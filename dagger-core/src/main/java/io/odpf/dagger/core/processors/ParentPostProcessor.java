@@ -1,20 +1,20 @@
 package io.odpf.dagger.core.processors;
 
-import io.odpf.dagger.core.processors.types.PostProcessor;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.types.Row;
 
-import io.odpf.dagger.core.metrics.telemetry.TelemetrySubscriber;
-import io.odpf.dagger.common.core.StreamInfo;
+import io.odpf.dagger.common.configuration.Configuration;
 import io.odpf.dagger.common.core.StencilClientOrchestrator;
+import io.odpf.dagger.common.core.StreamInfo;
+import io.odpf.dagger.core.metrics.telemetry.TelemetrySubscriber;
 import io.odpf.dagger.core.processors.common.FetchOutputDecorator;
 import io.odpf.dagger.core.processors.common.InitializationDecorator;
 import io.odpf.dagger.core.processors.external.ExternalMetricConfig;
 import io.odpf.dagger.core.processors.external.ExternalPostProcessor;
-import io.odpf.dagger.core.processors.external.SchemaConfig;
+import io.odpf.dagger.core.processors.common.SchemaConfig;
 import io.odpf.dagger.core.processors.internal.InternalPostProcessor;
 import io.odpf.dagger.core.processors.transformers.TransformProcessor;
+import io.odpf.dagger.core.processors.types.PostProcessor;
 import io.odpf.dagger.core.utils.Constants;
 
 import java.util.ArrayList;
@@ -26,9 +26,9 @@ import java.util.stream.Collectors;
  */
 public class ParentPostProcessor implements PostProcessor {
     private final PostProcessorConfig postProcessorConfig;
+    private Configuration configuration;
     private final StencilClientOrchestrator stencilClientOrchestrator;
     private TelemetrySubscriber telemetrySubscriber;
-    private Configuration configuration;
 
     /**
      * Instantiates a new Parent post processor.
@@ -87,7 +87,7 @@ public class ParentPostProcessor implements PostProcessor {
         ExternalMetricConfig externalMetricConfig = getExternalMetricConfig(configuration, subscriber);
         ArrayList<PostProcessor> processors = new ArrayList<>();
         processors.add(new ExternalPostProcessor(schemaConfig, postProcessorConfig.getExternalSource(), externalMetricConfig));
-        processors.add(new InternalPostProcessor(postProcessorConfig));
+        processors.add(new InternalPostProcessor(postProcessorConfig, schemaConfig));
         return processors
                 .stream()
                 .filter(p -> p.canProcess(postProcessorConfig))

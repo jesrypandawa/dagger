@@ -64,7 +64,7 @@ public class PostProcessorConfigTest {
         outputMapping = new OutputMapping("$.data.tensor.values[0]");
         outputMappings.put("surge_factor", outputMapping);
 
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("http://localhost:8000", "post", null, null, "5000", "5000", true, null, null, headerMap, outputMappings, null, false);
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("http://localhost:8000", "post", null, null, null, null, "5000", "5000", true, null, null, headerMap, outputMappings, null, false);
 
         assertEquals(httpSourceConfig, defaultPostProcessorConfig.getExternalSource().getHttpConfig().get(0));
     }
@@ -120,7 +120,7 @@ public class PostProcessorConfigTest {
     @Test
     public void shouldNotBeEmptyWhenExternalSourceHasHttpConfigExist() {
         ArrayList<HttpSourceConfig> http = new ArrayList<>();
-        http.add(new HttpSourceConfig("", "", "", "", "", "", false, "", "", new HashMap<>(), new HashMap<>(), "metricId_01", false));
+        http.add(new HttpSourceConfig("", "", "", "", "", "", "", "", false, "", "", new HashMap<>(), new HashMap<>(), "metricId_01", false));
         ArrayList<EsSourceConfig> es = new ArrayList<>();
         ArrayList<PgSourceConfig> pg = new ArrayList<>();
         ExternalSourceConfig externalSourceConfig = new ExternalSourceConfig(http, es, pg, new ArrayList<>());
@@ -168,7 +168,7 @@ public class PostProcessorConfigTest {
     @Test
     public void shouldNotBeEmptyWhenInternalSourceExist() {
         ArrayList<InternalSourceConfig> internalSourceConfigs = new ArrayList<>();
-        internalSourceConfigs.add(new InternalSourceConfig("outputField", "value", "type"));
+        internalSourceConfigs.add(new InternalSourceConfig("outputField", "value", "type", null));
         defaultPostProcessorConfig = new PostProcessorConfig(null, null, internalSourceConfigs);
 
         assertFalse(defaultPostProcessorConfig.isEmpty());
@@ -230,7 +230,7 @@ public class PostProcessorConfigTest {
     @Test
     public void shouldHaveInternalSourceWhenInternalSourceIsNotEmpty() {
         ArrayList<InternalSourceConfig> internalSource = new ArrayList<>();
-        internalSource.add(new InternalSourceConfig("outputField", "value", "type"));
+        internalSource.add(new InternalSourceConfig("outputField", "value", "type", null));
         defaultPostProcessorConfig = new PostProcessorConfig(defaultExternalSourceConfig, null, this.defaultInternalSource);
         assertFalse(defaultPostProcessorConfig.hasInternalSource());
     }
@@ -284,4 +284,10 @@ public class PostProcessorConfigTest {
         assertTrue(defaultPostProcessorConfig.hasSQLTransformer());
     }
 
+    @Test
+    public void shouldParseInternalProcessorConfigForInternalSourceConfig() {
+        String configuration = "{\"internal_source\":[{\"output_field\":\"payload\",\"value\":\"JSON_PAYLOAD\",\"type\":\"function\",\"internal_processor_config\":{\"schema_proto_class\":\"com.foo.bar.RestaurantMessage\"}}]}";
+        PostProcessorConfig postProcessorConfig = PostProcessorConfig.parse(configuration);
+        assertNotNull(postProcessorConfig.getInternalSource().get(0).getInternalProcessorConfig());
+    }
 }

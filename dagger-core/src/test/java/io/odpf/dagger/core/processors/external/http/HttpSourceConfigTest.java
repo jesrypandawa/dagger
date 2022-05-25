@@ -1,22 +1,18 @@
 package io.odpf.dagger.core.processors.external.http;
 
 import io.odpf.dagger.core.processors.common.OutputMapping;
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.Integer.parseInt;
 import static org.junit.Assert.*;
 
 public class HttpSourceConfigTest {
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
     private HashMap<String, String> headerMap;
     private HttpSourceConfig defaultHttpSourceConfig;
     private HashMap<String, OutputMapping> outputMappings;
@@ -26,6 +22,8 @@ public class HttpSourceConfigTest {
     private String verb;
     private String requestPattern;
     private String requestVariables;
+    private String headerPattern;
+    private String headerVariables;
     private String connectTimeout;
     private boolean failOnErrors;
     private String type;
@@ -45,18 +43,20 @@ public class HttpSourceConfigTest {
         verb = "POST";
         requestPattern = "/customers/customer/%s";
         requestVariables = "customer_id";
+        headerPattern = "{\"X_KEY\":\"%s\"}";
+        headerVariables = "customer_id";
         connectTimeout = "234";
         failOnErrors = false;
         type = "InputProtoMessage";
         capacity = "345";
         metricId = "metricId-http-01";
         retainResponseType = false;
-        defaultHttpSourceConfig = new HttpSourceConfig(endpoint, verb, requestPattern, requestVariables, streamTimeout, connectTimeout, failOnErrors, type, capacity, headerMap, outputMappings, metricId, retainResponseType);
+        defaultHttpSourceConfig = new HttpSourceConfig(endpoint, verb, requestPattern, requestVariables, headerPattern, headerVariables, streamTimeout, connectTimeout, failOnErrors, type, capacity, headerMap, outputMappings, metricId, retainResponseType);
     }
 
     @Test
     public void shouldReturnConnectTimeout() {
-        Assert.assertEquals(Integer.parseInt(connectTimeout), (int) defaultHttpSourceConfig.getConnectTimeout());
+        assertEquals(parseInt(connectTimeout), (int) defaultHttpSourceConfig.getConnectTimeout());
     }
 
     @Test
@@ -111,13 +111,13 @@ public class HttpSourceConfigTest {
 
     @Test
     public void hasTypeShouldBeFalseWhenTypeIsNull() {
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("", "", "", "", null, "", false, null, "", new HashMap<>(), new HashMap<>(), metricId, false);
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("", "", "", "", "", "", null, "", false, null, "", new HashMap<>(), new HashMap<>(), metricId, false);
         assertFalse(httpSourceConfig.hasType());
     }
 
     @Test
     public void hasTypeShouldBeFalseWhenTypeIsEmpty() {
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("", "", "", "", "", "", false, "", "", new HashMap<>(), new HashMap<>(), metricId, false);
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("", "", "", "", "", "", "", "", false, "", "", new HashMap<>(), new HashMap<>(), metricId, false);
         assertFalse(httpSourceConfig.hasType());
     }
 
@@ -140,60 +140,60 @@ public class HttpSourceConfigTest {
     public void shouldReturnColumnNames() {
         List<String> actualColumns = defaultHttpSourceConfig.getOutputColumns();
         String[] expectedColumns = {"surge_factor"};
-        Assert.assertArrayEquals(expectedColumns, actualColumns.toArray());
+        assertArrayEquals(expectedColumns, actualColumns.toArray());
     }
 
     @Test
     public void shouldValidate() {
-        expectedException = ExpectedException.none();
-
         defaultHttpSourceConfig.validateFields();
     }
 
     @Test
     public void shouldThrowExceptionIfAllFieldsMissing() {
-        expectedException.expect(IllegalArgumentException.class);
-        expectedException.expectMessage("Missing required fields: [endpoint, streamTimeout, requestPattern, verb, connectTimeout, outputMapping]");
 
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig(null, null, null, requestVariables, null, null, false, null, capacity, null, null, metricId, retainResponseType);
-        httpSourceConfig.validateFields();
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig(null, null, null, requestVariables, null, null, null, null, false, null, capacity, null, null, metricId, retainResponseType);
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> httpSourceConfig.validateFields());
+        assertEquals("Missing required fields: [endpoint, streamTimeout, requestPattern, verb, connectTimeout, outputMapping]", exception.getMessage());
     }
 
     @Test
     public void shouldThrowExceptionIfSomeFieldsMissing() {
-        expectedException.expectMessage("Missing required fields: [streamTimeout, connectTimeout, outputMapping]");
-        expectedException.expect(IllegalArgumentException.class);
 
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("localhost", "post", "body", requestVariables, null, null, false, null, capacity, null, null, "metricId_01", retainResponseType);
-        httpSourceConfig.validateFields();
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("localhost", "post", "body", requestVariables, null, null, null, null, false, null, capacity, null, null, "metricId_01", retainResponseType);
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> httpSourceConfig.validateFields());
+        assertEquals("Missing required fields: [streamTimeout, connectTimeout, outputMapping]", exception.getMessage());
     }
 
     @Test
     public void shouldThrowExceptionIfFieldsOfNestedObjectsAreMissing() {
-        expectedException.expectMessage("Missing required fields: [path]");
-        expectedException.expect(IllegalArgumentException.class);
 
         OutputMapping outputMappingWithNullField = new OutputMapping(null);
 
         outputMappings.put("field", outputMappingWithNullField);
 
         defaultHttpSourceConfig = new HttpSourceConfig("http://localhost",
-                "post", "request_body", requestVariables, "4000", "1000", false, "", capacity, headerMap, outputMappings, "metricId_01", retainResponseType);
-        defaultHttpSourceConfig.validateFields();
+                "post", "request_body", requestVariables, "", "", "4000", "1000", false, "", capacity, headerMap, outputMappings, "metricId_01", retainResponseType);
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> defaultHttpSourceConfig.validateFields());
+        assertEquals("Missing required fields: [path]", exception.getMessage());
+
     }
 
     @Test
     public void shouldThrowExceptionIfRequestPatternIsEmpty() {
-        expectedException.expectMessage("Missing required fields: [requestPattern]");
-        expectedException.expect(IllegalArgumentException.class);
 
         OutputMapping outputMappingWithNullField = new OutputMapping(null);
 
         outputMappings.put("field", outputMappingWithNullField);
 
         defaultHttpSourceConfig = new HttpSourceConfig("http://localhost",
-                "post", "", requestVariables, "4000", "1000", false, "", capacity, headerMap, outputMappings, "metricId_01", retainResponseType);
-        defaultHttpSourceConfig.validateFields();
+                "post", "", requestVariables, "", "", "4000", "1000", false, "", capacity, headerMap, outputMappings, "metricId_01", retainResponseType);
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> defaultHttpSourceConfig.validateFields());
+        assertEquals("Missing required fields: [requestPattern]", exception.getMessage());
+
     }
 
     @Test
@@ -223,11 +223,11 @@ public class HttpSourceConfigTest {
 
     @Test
     public void shouldValidateWhenOutputMappingIsEmpty() {
-        expectedException.expect(IllegalArgumentException.class);
-        expectedException.expectMessage("Missing required fields: [outputMapping]");
 
-        defaultHttpSourceConfig = new HttpSourceConfig(endpoint, verb, requestPattern, requestVariables, streamTimeout, connectTimeout, failOnErrors, type, capacity, headerMap, new HashMap<>(), "metricId_01", retainResponseType);
+        defaultHttpSourceConfig = new HttpSourceConfig(endpoint, verb, requestPattern, requestVariables, headerPattern, headerVariables, streamTimeout, connectTimeout, failOnErrors, type, capacity, headerMap, new HashMap<>(), "metricId_01", retainResponseType);
 
-        defaultHttpSourceConfig.validateFields();
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> defaultHttpSourceConfig.validateFields());
+        assertEquals("Missing required fields: [outputMapping]", exception.getMessage());
     }
 }

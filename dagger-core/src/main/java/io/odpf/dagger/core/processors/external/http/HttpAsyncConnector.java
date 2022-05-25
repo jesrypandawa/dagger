@@ -9,12 +9,13 @@ import io.odpf.dagger.core.processors.common.PostResponseTelemetry;
 import io.odpf.dagger.core.processors.common.RowManager;
 import io.odpf.dagger.core.processors.external.AsyncConnector;
 import io.odpf.dagger.core.processors.external.ExternalMetricConfig;
-import io.odpf.dagger.core.processors.external.SchemaConfig;
+import io.odpf.dagger.core.processors.common.SchemaConfig;
 import io.odpf.dagger.core.processors.external.http.request.HttpRequestFactory;
 import org.apache.flink.streaming.api.functions.async.ResultFuture;
 import org.apache.flink.types.Row;
 
 import io.odpf.dagger.core.utils.Constants;
+import io.odpf.dagger.core.utils.Constants.ExternalPostProcessorVariableType;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.BoundRequestBuilder;
 import org.slf4j.Logger;
@@ -94,12 +95,14 @@ public class HttpAsyncConnector extends AsyncConnector {
             RowManager rowManager = new RowManager(input);
 
             Object[] requestVariablesValues = getEndpointHandler()
-                    .getEndpointOrQueryVariablesValues(rowManager, resultFuture);
-            if (getEndpointHandler().isQueryInvalid(resultFuture, rowManager, requestVariablesValues)) {
+                    .getVariablesValue(rowManager, ExternalPostProcessorVariableType.REQUEST_VARIABLES, httpSourceConfig.getRequestVariables(), resultFuture);
+            Object[] dynamicHeaderVariablesValues = getEndpointHandler()
+                    .getVariablesValue(rowManager, ExternalPostProcessorVariableType.HEADER_VARIABLES, httpSourceConfig.getHeaderVariables(), resultFuture);
+            if (getEndpointHandler().isQueryInvalid(resultFuture, rowManager, httpSourceConfig.getRequestVariables(), requestVariablesValues) || getEndpointHandler().isQueryInvalid(resultFuture, rowManager, httpSourceConfig.getHeaderVariables(), dynamicHeaderVariablesValues)) {
                 return;
             }
 
-            BoundRequestBuilder request = HttpRequestFactory.createRequest(httpSourceConfig, httpClient, requestVariablesValues);
+            BoundRequestBuilder request = HttpRequestFactory.createRequest(httpSourceConfig, httpClient, requestVariablesValues, dynamicHeaderVariablesValues);
             HttpResponseHandler httpResponseHandler = new HttpResponseHandler(httpSourceConfig, getMeterStatsManager(),
                     rowManager, getColumnNameManager(), getOutputDescriptor(resultFuture), resultFuture, getErrorReporter(), new PostResponseTelemetry());
             httpResponseHandler.startTimer();

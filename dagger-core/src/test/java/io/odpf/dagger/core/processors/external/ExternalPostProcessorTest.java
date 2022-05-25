@@ -1,6 +1,10 @@
 package io.odpf.dagger.core.processors.external;
 
-import com.gojek.de.stencil.client.StencilClient;
+import io.odpf.dagger.core.processors.common.SchemaConfig;
+import org.apache.flink.streaming.api.datastream.DataStream;
+
+import io.odpf.stencil.client.StencilClient;
+import io.odpf.dagger.common.configuration.Configuration;
 import io.odpf.dagger.common.core.StencilClientOrchestrator;
 import io.odpf.dagger.common.core.StreamInfo;
 import io.odpf.dagger.consumer.TestBookingLogMessage;
@@ -11,13 +15,9 @@ import io.odpf.dagger.core.processors.external.es.EsSourceConfig;
 import io.odpf.dagger.core.processors.external.es.EsStreamDecorator;
 import io.odpf.dagger.core.processors.external.http.HttpSourceConfig;
 import io.odpf.dagger.core.processors.external.http.HttpStreamDecorator;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
@@ -26,10 +26,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_SHUTDOWN_PERIOD_MS_DEFAULT;
-import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_SHUTDOWN_PERIOD_MS_KEY;
 import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_ENABLE_KEY;
 import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_ENABLE_VALUE_DEFAULT;
+import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_SHUTDOWN_PERIOD_MS_DEFAULT;
+import static io.odpf.dagger.core.utils.Constants.METRIC_TELEMETRY_SHUTDOWN_PERIOD_MS_KEY;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -38,10 +39,6 @@ import static org.mockito.MockitoAnnotations.initMocks;
 
 
 public class ExternalPostProcessorTest {
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
-
     @Mock
     private Configuration configuration;
 
@@ -68,14 +65,14 @@ public class ExternalPostProcessorTest {
     private ExternalPostProcessor externalPostProcessor;
     private ExternalMetricConfig externalMetricConfig;
 
+
     @Before
     public void setup() {
         initMocks(this);
-
         HashMap<String, OutputMapping> httpColumnNames = new HashMap<>();
         httpColumnNames.put("http_field_1", new OutputMapping(""));
         httpColumnNames.put("http_field_2", new OutputMapping(""));
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("endpoint", "POST", "/some/patttern/%s", "variable", "123", "234", false, "type", "20", new HashMap<>(), httpColumnNames, "metricId_01", false);
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("endpoint", "POST", "/some/patttern/%s", "variable", "", "", "123", "234", false, "type", "20", new HashMap<>(), httpColumnNames, "metricId_01", false);
         HashMap<String, OutputMapping> esOutputMapping = new HashMap<>();
         esOutputMapping.put("es_field_1", new OutputMapping(""));
         EsSourceConfig esSourceConfig = new EsSourceConfig("host", "port", "", "", "endpointPattern",
@@ -138,7 +135,7 @@ public class ExternalPostProcessorTest {
         outputMapping.put("order_id", new OutputMapping("path"));
 
         List<HttpSourceConfig> httpSourceConfigs = new ArrayList<>();
-        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("endpoint", "POST", "/some/patttern/%s", "variable", "123", "234", false, "type", "20", new HashMap<>(), outputMapping, "metricId_01", false);
+        HttpSourceConfig httpSourceConfig = new HttpSourceConfig("endpoint", "POST", "/some/patttern/%s", "variable", "", "", "123", "234", false, "type", "20", new HashMap<>(), outputMapping, "metricId_01", false);
         httpSourceConfigs.add(httpSourceConfig);
 
         List<EsSourceConfig> esSourceConfigs = new ArrayList<>();
@@ -186,6 +183,8 @@ public class ExternalPostProcessorTest {
         StreamInfo streamInfo = new StreamInfo(dataStream, inputColumnNames);
 
         String[] expectedOutputColumnNames = {"request_body", "order_number"};
+
+        assertArrayEquals(expectedOutputColumnNames, postProcessorConfig.getOutputColumnNames().toArray());
     }
 
     @Ignore("Need to fix this test")

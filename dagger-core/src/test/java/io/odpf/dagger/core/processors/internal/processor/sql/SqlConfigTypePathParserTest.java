@@ -5,22 +5,18 @@ import io.odpf.dagger.core.processors.ColumnNameManager;
 import io.odpf.dagger.core.processors.common.RowManager;
 import io.odpf.dagger.core.processors.internal.InternalSourceConfig;
 import org.apache.flink.types.Row;
-import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.util.Arrays;
 
-public class SqlConfigTypePathParserTest {
+import static org.junit.Assert.*;
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+public class SqlConfigTypePathParserTest {
 
     @Test
     public void shouldReturnAllOfTheInputData() {
         ColumnNameManager columnNameManager = new ColumnNameManager(new String[]{}, Arrays.asList());
-        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("all", "*", "sql");
+        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("all", "*", "sql", null);
         SqlConfigTypePathParser sqlConfigTypePathParser = new SqlConfigTypePathParser(internalSourceConfig, columnNameManager);
 
         Row inputRow = new Row(2);
@@ -33,17 +29,13 @@ public class SqlConfigTypePathParserTest {
         RowManager rowManager = new RowManager(parentRow);
 
         Object data = sqlConfigTypePathParser.getData(rowManager);
-
-        Assert.assertEquals(rowManager.getInputData(), data);
+        assertEquals(Row.of("input1", "input2"), data);
     }
 
     @Test
     public void shouldThrowExceptionWhenTheColumnNameIsNotFoundInInputColumns() {
-        expectedException.expect(InvalidConfigurationException.class);
-        expectedException.expectMessage("Value 'value' in input field for sql is wrongly configured");
-
         ColumnNameManager columnNameManager = new ColumnNameManager(new String[]{"input1", "input2"}, Arrays.asList("output1", "output2", "output3"));
-        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("field", "value", "sql");
+        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("field", "value", "sql", null);
         SqlConfigTypePathParser sqlConfigTypePathParser = new SqlConfigTypePathParser(internalSourceConfig, columnNameManager);
 
         Row inputRow = new Row(2);
@@ -53,13 +45,15 @@ public class SqlConfigTypePathParserTest {
         parentRow.setField(1, outputRow);
         RowManager rowManager = new RowManager(parentRow);
 
-        sqlConfigTypePathParser.getData(rowManager);
+        InvalidConfigurationException exception = assertThrows(InvalidConfigurationException.class,
+                () -> sqlConfigTypePathParser.getData(rowManager));
+        assertEquals("Value 'value' in input field for sql is wrongly configured", exception.getMessage());
     }
 
     @Test
     public void shouldReturnTheInputDataAsPerTheConfiguration() {
         ColumnNameManager columnNameManager = new ColumnNameManager(new String[]{"input1", "input2"}, Arrays.asList("output1", "output2", "output3"));
-        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("field", "input2", "sql");
+        InternalSourceConfig internalSourceConfig = new InternalSourceConfig("field", "input2", "sql", null);
         SqlConfigTypePathParser sqlConfigTypePathParser = new SqlConfigTypePathParser(internalSourceConfig, columnNameManager);
 
         Row inputRow = new Row(2);
@@ -73,7 +67,7 @@ public class SqlConfigTypePathParserTest {
 
         Object data = sqlConfigTypePathParser.getData(rowManager);
 
-        Assert.assertEquals("inputData2", data);
+        assertEquals("inputData2", data);
     }
 
 }
