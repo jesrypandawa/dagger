@@ -1,5 +1,8 @@
 name: Python Package
-on: release
+on:
+  release:
+    tags:
+      - '*'
 
 jobs:
   publishPythonZip:
@@ -14,6 +17,9 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "python_udf.zip,python_functions/requirements.txt,python_functions/data/*"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          artifactErrorsFailBuild: true
           allowUpdates: true
+          omitNameDuringUpdate: true
           omitBodyDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
+          token: ${{ secrets.GITHUB_TOKEN }}
