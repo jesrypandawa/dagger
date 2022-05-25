@@ -1,8 +1,5 @@
 name: Python Package
-on:
-  push:
-    tags:
-      - '*'
+on: release
 
 jobs:
   publishPythonZip:
@@ -19,3 +16,4 @@ jobs:
           artifacts: "python_udf.zip,python_functions/requirements.txt,python_functions/data/*"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
+          omitBodyDuringUpdate: true
