@@ -2,7 +2,7 @@ name: Python Package
 on:
   push:
     branches:
-      - test-sync
+      - sync-test
 jobs:
   build:
     runs-on: ubuntu-latest
