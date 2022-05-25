@@ -1,7 +1,9 @@
 name: Python Package
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - '*'
+
 jobs:
   publishPythonZip:
     runs-on: ubuntu-latest
