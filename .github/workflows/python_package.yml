@@ -1,0 +1,19 @@
+name: Python Package
+on:
+  push:
+    branches:
+      - test-sync
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Zip Python Udf
+        run: zip -r python_udf.zip $GITHUB_WORKSPACE/python_functions
+      - name: Show Files
+        run: ls -a
+      - name: Upload Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "python_udf.zip,python_functions/requirements.txt,python_functions/data/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
