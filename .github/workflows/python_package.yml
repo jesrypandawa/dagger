@@ -8,13 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Get Version
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Zip Python Udf
         run: |
-          zip -rD python_udfs.zip dagger-py-functions/udfs -x "*/__init__.py"
-          zip -rD data.zip dagger-py-functions/data
-          zip -rD dagger-py-functions.zip dagger-py-functions/requirements.txt data.zip python_udfs.zip
+          cd dagger-py-functions
+          zip -r python_udfs.zip udfs -x "*/__init__.py"
+          zip -jr data.zip data
+          zip -r dagger-py-functions.zip requirements.txt data.zip python_udfs.zip
       - name: Upload Release
         uses: ncipollo/release-action@v1
         with:
